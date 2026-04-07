@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
+import 'dart:math';
 import 'constants.dart';
 import 'piece.dart';
 
@@ -36,12 +38,57 @@ class GameBoard extends StatefulWidget {
 
 class _GameBoardState extends State<GameBoard> {
   late Piece currentPiece;
+  List<List<Color?>> gameGrid;
+  Timer? gameTimer;
+  final Random random = Random();
 
   @override
   void initState() {
     super.initState();
-    currentPiece = Piece(type: Tetromino.T);
+    gameGrid = List.generate(
+      GameConstants.rowLength,
+      (_) => List.generate(GameConstants.colLength, (_) => null),
+    );
+    createNewPiece();
+    startGame();
+  }
+
+  @override
+  void dispose() {
+    gameTimer?.cancel();
+    super.dispose();
+  }
+
+  void createNewPiece() {
+    final tetrominoTypes = Tetromino.values;
+    currentPiece = Piece(type: tetrominoTypes[random.nextInt(tetrominoTypes.length)]);
     currentPiece.initializePiece();
+  }
+
+  void startGame() {
+    gameTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
+      movePieceDown();
+    });
+  }
+
+  void movePieceDown() {
+    setState(() {
+      int currentRow = currentPiece.position[0];
+      int currentCol = currentPiece.position[1];
+      int newRow = currentRow + 1;
+
+      // Check if piece hits bottom or another landed block
+      if (newRow >= GameConstants.rowLength || 
+          (newRow < GameConstants.rowLength && gameGrid[newRow][currentCol] != null)) {
+        // Fix piece to grid
+        gameGrid[currentRow][currentCol] = currentPiece.color;
+        // Create new piece
+        createNewPiece();
+      } else {
+        // Move piece down
+        currentPiece.position[0] = newRow;
+      }
+    });
   }
 
   @override
@@ -67,9 +114,11 @@ class _GameBoardState extends State<GameBoard> {
               currentPiece.position[0] == row && 
               currentPiece.position[1] == col;
           
+          Color? cellColor = gameGrid[row][col];
+          
           return Container(
             decoration: BoxDecoration(
-              color: isCurrentPiece ? currentPiece.color : Colors.transparent,
+              color: isCurrentPiece ? currentPiece.color : (cellColor ?? Colors.transparent),
               border: Border.all(
                 color: Colors.grey[700]!,
                 width: 0.5,
