@@ -55,6 +55,8 @@ class _GameBoardState extends State<GameBoard> {
       GameConstants.rowLength,
       (_) => List.generate(GameConstants.colLength, (_) => null),
     );
+    print('Game initialized with grid: ${GameConstants.rowLength}x${GameConstants.colLength}');
+    print('Initial empty cells: ${GameConstants.rowLength * GameConstants.colLength}');
   }
 
   bool isValidDrop(int row, int col) {
@@ -69,7 +71,13 @@ class _GameBoardState extends State<GameBoard> {
     setState(() {
       gameGrid[row][col] = color;
       checkAndClearLines();
-      checkGameOver();
+    });
+    
+    // Delay game over check to avoid immediate triggering
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (mounted) {
+        checkGameOver();
+      }
     });
   }
 
@@ -138,21 +146,49 @@ class _GameBoardState extends State<GameBoard> {
   bool canPlaceAnyBlock() {
     // Get the BlockPool state to access pool pieces
     final blockPoolState = context.findAncestorStateOfType<_BlockPoolState>();
-    if (blockPoolState == null) return false;
+    if (blockPoolState == null) {
+      print('BlockPool state is null');
+      return false;
+    }
 
-    // Check each block in the pool
+    // Count empty cells for debugging
+    int emptyCells = 0;
+    for (int row = 0; row < GameConstants.rowLength; row++) {
+      for (int col = 0; col < GameConstants.colLength; col++) {
+        if (gameGrid[row][col] == null) {
+          emptyCells++;
+        }
+      }
+    }
+    print('Empty cells: $emptyCells, Pool pieces: ${blockPoolState.poolPieces.length}');
+
+    // If no empty cells, game is definitely over
+    if (emptyCells == 0) {
+      return false;
+    }
+
+    // Check if at least one piece in the pool can be placed
     for (Piece piece in blockPoolState.poolPieces) {
+      bool canPlaceThisPiece = false;
       // Check if this piece can be placed anywhere on the grid
       for (int row = 0; row < GameConstants.rowLength; row++) {
         for (int col = 0; col < GameConstants.colLength; col++) {
           if (gameGrid[row][col] == null) {
-            // Found an empty spot, so this piece can be placed
-            return true;
+            // Found an empty spot for this piece
+            canPlaceThisPiece = true;
+            print('Found empty spot at ($row, $col) for piece ${piece.type.name}');
+            break;
           }
         }
+        if (canPlaceThisPiece) break;
+      }
+      if (canPlaceThisPiece) {
+        print('At least one piece can be placed');
+        return true; // At least one piece can be placed
       }
     }
     
+    print('No valid placement found for any piece');
     // No valid placement found for any piece
     return false;
   }
