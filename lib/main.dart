@@ -458,6 +458,27 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
     _showParticleEffect(key, particles);
   }
 
+  void _restartGame() {
+    setState(() {
+      gameGrid = List.generate(
+        GameConstants.rowLength,
+        (_) => List.generate(GameConstants.colLength, (_) => null),
+      );
+      clearingCells = List.generate(
+        GameConstants.rowLength,
+        (_) => List.generate(GameConstants.colLength, (_) => false),
+      );
+      score = 0;
+      isGameOver = false;
+      comboCount = 0;
+      comboMultiplier = 1;
+    });
+    
+    // Refresh the block pool
+    final blockPoolState = context.findAncestorStateOfType<_BlockPoolState>();
+    blockPoolState?.refreshPool();
+  }
+
   void _showParticleEffect(String key, List<Particle> particles) {
     // Remove existing effect if it exists
     _particleEffects[key]?.dispose?.call();
@@ -469,7 +490,7 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
         duration: const Duration(milliseconds: 500),
       );
     });
-                            Icon(
+  }                          Icon(
                               isPaused ? Icons.play_arrow : Icons.pause,
                               color: Colors.white,
                               size: 16,
@@ -482,6 +503,7 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
                               ),
+                            ),
                             ),
                           ],
                         ),
@@ -557,7 +579,7 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
               bool isPlacing = _cellAnimations.containsKey(cellKey);
               
               return AnimatedBuilder(
-                animation: Listenable.merge([_clearAnimation, _cellAnimations[cellKey] ?? const AlwaysStoppedAnimation()]),
+                animation: Listenable.merge([_clearAnimation, _cellAnimations[cellKey] ?? const AlwaysStoppedAnimation(0.0)]),
                 builder: (context, child) {
                   Color cellColor = gameGrid[row][col];
                   Color displayColor;

@@ -2,23 +2,25 @@ import 'package:flutter/material.dart';
 import 'dart:math';
 
 class Particle {
-  final double x;
-  final double y;
-  final double size;
-  final Color color;
-  final double velocityX;
-  final double velocityY;
-  final double life;
+  double x;
+  double y;
+  double size;
+  Color color;
+  double velocityX;
+  double velocityY;
+  double life;
 
   Particle({
     required this.x,
     required this.y,
     required this.size,
     required this.color,
-    this.velocityX = (Random().nextDouble() - 0.5) * 2,
-    this.velocityY = (Random().nextDouble() - 0.5) * 2,
-    this.life = 1.0,
-  });
+    double? velocityX,
+    double? velocityY,
+    double? life,
+  }) : velocityX = velocityX ?? (Random().nextDouble() - 0.5) * 2,
+       velocityY = velocityY ?? (Random().nextDouble() - 0.5) * 2,
+       life = life ?? 1.0;
 
   void update(double deltaTime) {
     x += velocityX * deltaTime;
