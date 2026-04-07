@@ -6,6 +6,7 @@ import 'constants.dart';
 import 'piece.dart';
 import 'sound_manager.dart';
 import 'high_score_manager.dart';
+import 'commentary_manager.dart';
 
 void main() {
   runApp(const MaterialApp(
@@ -38,10 +39,15 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
   int comboMultiplier = 1;
   late AnimationController _clearAnimationController;
   late AnimationController _comboAnimationController;
+  late AnimationController _commentaryAnimationController;
   late Animation<double> _clearAnimation;
   late Animation<double> _comboAnimation;
+  late Animation<double> _commentaryAnimation;
   final SoundManager _soundManager = SoundManager();
   final HighScoreManager _highScoreManager = HighScoreManager();
+  final CommentaryManager _commentaryManager = CommentaryManager();
+  String? _currentCommentary;
+  Timer? _commentaryTimer;
 
   @override
   void initState() {
@@ -79,6 +85,17 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
       ),
     );
     
+    _commentaryAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 500),
+      vsync: this,
+    );
+    _commentaryAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _commentaryAnimationController,
+        curve: Curves.easeInOut,
+      ),
+    );
+    
     print('Game initialized with grid: ${GameConstants.rowLength}x${GameConstants.colLength}');
     print('Initial empty cells: ${GameConstants.rowLength * GameConstants.colLength}');
   }
@@ -87,6 +104,8 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
   void dispose() {
     _clearAnimationController.dispose();
     _comboAnimationController.dispose();
+    _commentaryAnimationController.dispose();
+    _commentaryTimer?.cancel();
     _soundManager.dispose();
     super.dispose();
   }
@@ -162,6 +181,7 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
       comboCount++;
       if (comboCount > 1) {
         comboMultiplier = comboCount;
+        _showCommentary(_commentaryManager.getComboCommentary());
       } else {
         comboMultiplier = 1;
       }
@@ -213,6 +233,7 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
           if (score > highScore) {
             highScore = score;
             _highScoreManager.saveHighScore(score);
+            _showCommentary(_commentaryManager.getHighScoreCommentary());
           }
         });
         _clearAnimationController.reset();
@@ -224,6 +245,25 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
         comboMultiplier = 1;
       });
     }
+  }
+
+  void _showCommentary(String commentary) {
+    _commentaryTimer?.cancel();
+    setState(() {
+      _currentCommentary = commentary;
+    });
+    _commentaryAnimationController.forward().then((_) {
+      _commentaryAnimationController.reset();
+    });
+    
+    // Hide commentary after 3 seconds
+    _commentaryTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) {
+        setState(() {
+          _currentCommentary = null;
+        });
+      }
+    });
   }
 
   bool canPlaceAnyBlock() {
@@ -281,6 +321,7 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
       setState(() {
         isGameOver = true;
       });
+      _showCommentary(_commentaryManager.getGameOverCommentary());
     }
   }
 
@@ -600,17 +641,81 @@ class _BlockPoolState extends State<BlockPool> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 100,
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
         children: [
-          ...poolPieces.map((piece) => _buildBlockPreview(piece)),
-          IconButton(
-            onPressed: refreshPool,
-            icon: const Icon(Icons.refresh, color: Colors.white),
-            tooltip: 'Refresh Pool',
+          // Commentary Bubble
+          if (_currentCommentary != null)
+            Positioned(
+              top: 20,
+              left: 20,
+              right: 20,
+              child: AnimatedBuilder(
+                animation: _commentaryAnimation,
+                builder: (context, child) {
+                  return Transform.translate(
+                    offset: Offset(0, -50 * (1.0 - _commentaryAnimation.value)),
+                    child: Opacity(
+                      opacity: _commentaryAnimation.value,
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.purple.withOpacity(0.9),
+                              Colors.blue.withOpacity(0.7),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Colors.cyanAccent, width: 2),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.cyanAccent.withOpacity(0.8),
+                              blurRadius: 15,
+                              spreadRadius: 3,
+                            ),
+                            BoxShadow(
+                              color: Colors.purple.withOpacity(0.6),
+                              blurRadius: 8,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
+                        child: Text(
+                          _currentCommentary!,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            shadows: [
+                              Shadow(
+                                color: Colors.black,
+                                blurRadius: 3,
+                                offset: Offset(1, 1),
+                              ),
+                            ],
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          Column(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              ...poolPieces.map((piece) => _buildBlockPreview(piece)),
+              IconButton(
+                onPressed: refreshPool,
+                icon: const Icon(Icons.refresh, color: Colors.white),
+                tooltip: 'Refresh Pool',
+              ),
+            ],
           ),
         ],
       ),
