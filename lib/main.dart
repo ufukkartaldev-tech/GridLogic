@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:async';
 import 'dart:math';
 import 'constants.dart';
 import 'piece.dart';
@@ -21,8 +20,15 @@ class MyApp extends StatelessWidget {
       ),
       home: const Scaffold(
         backgroundColor: Colors.black,
-        body: Center(
-          child: GameBoard(),
+        body: Column(
+          children: [
+            Expanded(
+              child: Center(
+                child: GameBoard(),
+              ),
+            ),
+            BlockPool(),
+          ],
         ),
       ),
     );
@@ -39,7 +45,6 @@ class GameBoard extends StatefulWidget {
 class _GameBoardState extends State<GameBoard> {
   late Piece currentPiece;
   late List<List<Color?>> gameGrid;
-  Timer? gameTimer;
   final Random random = Random();
 
   @override
@@ -50,13 +55,6 @@ class _GameBoardState extends State<GameBoard> {
       (_) => List.generate(GameConstants.colLength, (_) => null),
     );
     createNewPiece();
-    startGame();
-  }
-
-  @override
-  void dispose() {
-    gameTimer?.cancel();
-    super.dispose();
   }
 
   void createNewPiece() {
@@ -65,30 +63,16 @@ class _GameBoardState extends State<GameBoard> {
     currentPiece.initializePiece();
   }
 
-  void startGame() {
-    gameTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
-      movePieceDown();
-    });
-  }
-
-  void movePieceDown() {
-    setState(() {
-      int currentRow = currentPiece.position[0];
-      int currentCol = currentPiece.position[1];
-      int newRow = currentRow + 1;
-
-      // Check if piece hits bottom or another landed block
-      if (newRow >= GameConstants.rowLength || 
-          (newRow < GameConstants.rowLength && gameGrid[newRow][currentCol] != null)) {
-        // Fix piece to grid
-        gameGrid[currentRow][currentCol] = currentPiece.color;
-        // Create new piece
+  void placePiece() {
+    if (currentPiece.position.length == 2) {
+      int row = currentPiece.position[0];
+      int col = currentPiece.position[1];
+      if (row >= 0 && row < GameConstants.rowLength && col >= 0 && col < GameConstants.colLength) {
+        gameGrid[row][col] = currentPiece.color;
         createNewPiece();
-      } else {
-        // Move piece down
-        currentPiece.position[0] = newRow;
+        setState(() {});
       }
-    });
+    }
   }
 
   @override
@@ -116,16 +100,95 @@ class _GameBoardState extends State<GameBoard> {
           
           Color? cellColor = gameGrid[row][col];
           
-          return Container(
-            decoration: BoxDecoration(
-              color: isCurrentPiece ? currentPiece.color : (cellColor ?? Colors.transparent),
-              border: Border.all(
-                color: Colors.grey[700]!,
-                width: 0.5,
+          return GestureDetector(
+            onTap: () {
+              if (isCurrentPiece) {
+                placePiece();
+              }
+            },
+            child: Container(
+              decoration: BoxDecoration(
+                color: isCurrentPiece ? currentPiece.color : (cellColor ?? Colors.transparent),
+                border: Border.all(
+                  color: Colors.grey[700]!,
+                  width: 0.5,
+                ),
               ),
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+class BlockPool extends StatefulWidget {
+  const BlockPool({super.key});
+
+  @override
+  State<BlockPool> createState() => _BlockPoolState();
+}
+
+class _BlockPoolState extends State<BlockPool> {
+  List<Piece> poolPieces = [];
+  final Random random = Random();
+
+  @override
+  void initState() {
+    super.initState();
+    generatePoolPieces();
+  }
+
+  void generatePoolPieces() {
+    poolPieces = List.generate(3, (_) {
+      final tetrominoTypes = Tetromino.values;
+      return Piece(type: tetrominoTypes[random.nextInt(tetrominoTypes.length)]);
+    });
+  }
+
+  void refreshPool() {
+    setState(() {
+      generatePoolPieces();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 100,
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          ...poolPieces.map((piece) => _buildBlockPreview(piece)),
+          IconButton(
+            onPressed: refreshPool,
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            tooltip: 'Refresh Pool',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBlockPreview(Piece piece) {
+    return Container(
+      width: 60,
+      height: 60,
+      decoration: BoxDecoration(
+        color: piece.color,
+        border: Border.all(color: Colors.grey[600]!, width: 1),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Center(
+        child: Text(
+          piece.type.name,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 12,
+          ),
+        ),
       ),
     );
   }
