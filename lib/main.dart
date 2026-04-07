@@ -7,6 +7,7 @@ import 'piece.dart';
 import 'sound_manager.dart';
 import 'high_score_manager.dart';
 import 'commentary_manager.dart';
+import 'particle_effect.dart';
 
 void main() {
   runApp(const MaterialApp(
@@ -51,6 +52,7 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
   String? _currentCommentary;
   Timer? _commentaryTimer;
   Map<String, AnimationController> _cellAnimations = {};
+  Map<String, List<ParticleEffect>> _particleEffects = {};
 
   @override
   void initState() {
@@ -123,9 +125,15 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
     _commentaryTimer?.cancel();
     _soundManager.dispose();
     
-    // Dispose cell animations
+    // Dispose cell animations and particle effects
     for (var controller in _cellAnimations.values) {
       controller.dispose();
+    }
+    for (var effects in _particleEffects.values) {
+      // Remove particle effects after animation
+      Future.delayed(const Duration(milliseconds: 500), () {
+        effects.dispose?.call();
+      });
     }
     super.dispose();
   }
@@ -217,6 +225,9 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
       
       // Calculate total points with multipliers
       int points = basePoints * simultaneousMultiplier * comboMultiplier;
+      
+      // Create particle effects for cleared lines
+      _createClearParticles(rowsToClear, colsToClear);
       
       // Increment combo for consecutive clears
       comboCount++;
@@ -402,18 +413,56 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
     // Refresh the block pool
     final blockPoolState = context.findAncestorStateOfType<_BlockPoolState>();
     blockPoolState?.refreshPool();
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                              spreadRadius: 1,
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
+  }
+
+  void _createClearParticles(List<int> rowsToClear, List<int> colsToClear) {
+    for (int row in rowsToClear) {
+      _createRowParticles(row);
+    }
+    for (int col in colsToClear) {
+      _createColumnParticles(col);
+    }
+  }
+
+  void _createRowParticles(int row) {
+    List<Particle> particles = [];
+    for (int col = 0; col < GameConstants.colLength; col++) {
+      particles.add(Particle(
+        x: col * GameConstants.pixelSize + GameConstants.pixelSize / 2,
+        y: row * GameConstants.pixelSize + GameConstants.pixelSize / 2,
+        size: 4.0,
+        color: Colors.cyanAccent,
+      ));
+    }
+    String key = 'row_$row';
+    _showParticleEffect(key, particles);
+  }
+
+  void _createColumnParticles(int col) {
+    List<Particle> particles = [];
+    for (int row = 0; row < GameConstants.rowLength; row++) {
+      particles.add(Particle(
+        x: col * GameConstants.pixelSize + GameConstants.pixelSize / 2,
+        y: row * GameConstants.pixelSize + GameConstants.pixelSize / 2,
+        size: 4.0,
+        color: Colors.purple,
+      ));
+    }
+    String key = 'col_$col';
+    _showParticleEffect(key, particles);
+  }
+
+  void _showParticleEffect(String key, List<Particle> particles) {
+    // Remove existing effect if it exists
+    _particleEffects[key]?.dispose?.call();
+    
+    // Create new particle effect
+    setState(() {
+      _particleEffects[key] = (
+        particles: particles,
+        duration: const Duration(milliseconds: 500),
+      );
+    });
                             Icon(
                               isPaused ? Icons.play_arrow : Icons.pause,
                               color: Colors.white,
@@ -763,6 +812,12 @@ class _BlockPoolState extends State<BlockPool> {
                 },
               ),
             ),
+          // Particle Effects
+          ..._particleEffects.values.map((effect) => Positioned(
+            top: effect.particles.first.y,
+            left: effect.particles.first.x,
+            child: effect,
+          )),
           Column(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
