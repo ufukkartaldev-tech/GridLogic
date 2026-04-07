@@ -49,8 +49,12 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
   final Random random = Random();
   int score = 0;
   bool isGameOver = false;
+  int comboCount = 0;
+  int comboMultiplier = 1;
   late AnimationController _clearAnimationController;
+  late AnimationController _comboAnimationController;
   late Animation<double> _clearAnimation;
+  late Animation<double> _comboAnimation;
 
   @override
   void initState() {
@@ -75,6 +79,17 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
       ),
     );
     
+    _comboAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 1000),
+      vsync: this,
+    );
+    _comboAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _comboAnimationController,
+        curve: Curves.elasticOut,
+      ),
+    );
+    
     print('Game initialized with grid: ${GameConstants.rowLength}x${GameConstants.colLength}');
     print('Initial empty cells: ${GameConstants.rowLength * GameConstants.colLength}');
   }
@@ -82,6 +97,7 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
   @override
   void dispose() {
     _clearAnimationController.dispose();
+    _comboAnimationController.dispose();
     super.dispose();
   }
 
@@ -142,11 +158,20 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
     // Clear lines and calculate score
     if (rowsToClear.isNotEmpty || colsToClear.isNotEmpty) {
       int totalLines = rowsToClear.length + colsToClear.length;
-      int points = totalLines * 100;
+      int basePoints = totalLines * 100;
       
-      // Bonus points for multiple simultaneous clears
-      if (totalLines > 1) {
-        points += (totalLines - 1) * 50;
+      // Combo multiplier for multiple simultaneous clears
+      int simultaneousMultiplier = totalLines > 1 ? totalLines : 1;
+      
+      // Calculate total points with multipliers
+      int points = basePoints * simultaneousMultiplier * comboMultiplier;
+      
+      // Increment combo for consecutive clears
+      comboCount++;
+      if (comboCount > 1) {
+        comboMultiplier = comboCount;
+      } else {
+        comboMultiplier = 1;
       }
       
       // Mark cells for clearing animation
@@ -163,6 +188,13 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
           }
         }
       });
+      
+      // Play combo animation if combo > 1
+      if (comboCount > 1) {
+        _comboAnimationController.forward().then((_) {
+          _comboAnimationController.reset();
+        });
+      }
       
       // Play clear animation
       _clearAnimationController.forward().then((_) {
@@ -186,6 +218,12 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
           score += points;
         });
         _clearAnimationController.reset();
+      });
+    } else {
+      // Reset combo if no lines cleared
+      setState(() {
+        comboCount = 0;
+        comboMultiplier = 1;
       });
     }
   }
@@ -254,8 +292,14 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
         GameConstants.rowLength,
         (_) => List.generate(GameConstants.colLength, (_) => null),
       );
+      clearingCells = List.generate(
+        GameConstants.rowLength,
+        (_) => List.generate(GameConstants.colLength, (_) => false),
+      );
       score = 0;
       isGameOver = false;
+      comboCount = 0;
+      comboMultiplier = 1;
     });
     
     // Refresh the block pool
@@ -271,13 +315,56 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
           children: [
             Container(
               padding: const EdgeInsets.all(16),
-              child: Text(
-                'Score: $score',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Score: $score',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  if (comboCount > 1)
+                    AnimatedBuilder(
+                      animation: _comboAnimation,
+                      builder: (context, child) {
+                        return Transform.scale(
+                          scale: 1.0 + (_comboAnimation.value * 0.5),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.orange,
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.orange.withOpacity(0.8),
+                                  blurRadius: 8.0,
+                                  spreadRadius: 2.0,
+                                ),
+                              ],
+                            ),
+                            child: Text(
+                              '${comboCount}x COMBO!',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                shadows: [
+                                  Shadow(
+                                    color: Colors.black,
+                                    blurRadius: 2,
+                                    offset: Offset(1, 1),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                ],
               ),
             ),
             Container(
