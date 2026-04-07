@@ -34,6 +34,7 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
   late List<List<bool>> clearingCells;
   final Random random = Random();
   int score = 0;
+  Piece? currentPiece;
   int highScore = 0;
   bool isGameOver = false;
   bool isPaused = false;
@@ -136,12 +137,14 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
   }
 
   bool isValidDrop(int row, int col, Piece piece) {
-    final shape = piece.getShape();
+    final coordinates = piece.getShapeCoordinates();
     
     // Check if all cells of the shape are within bounds and empty
-    for (final pos in shape) {
-      final targetRow = row + pos[1];
-      final targetCol = col + pos[0];
+    for (int i = 0; i < coordinates.length; i += 2) {
+      final xOffset = coordinates[i];
+      final yOffset = coordinates[i + 1];
+      final targetRow = row + yOffset;
+      final targetCol = col + xOffset;
       
       if (targetRow < 0 || 
           targetRow >= GameConstants.rowLength || 
@@ -158,14 +161,16 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
     _soundManager.playDrop();
     HapticFeedback.lightImpact(); // Light impact for block placement
     
-    final shape = piece.getShape();
-    final color = piece.color;
+    final coordinates = piece.getShapeCoordinates();
+    final color = piece.neonColor;
     List<String> cellKeys = [];
     
     // Dispose existing animations for all cells in this shape
-    for (final pos in shape) {
-      final targetRow = row + pos[1];
-      final targetCol = col + pos[0];
+    for (int i = 0; i < coordinates.length; i += 2) {
+      final xOffset = coordinates[i];
+      final yOffset = coordinates[i + 1];
+      final targetRow = row + yOffset;
+      final targetCol = col + xOffset;
       String cellKey = '${targetRow}_$targetCol';
       cellKeys.add(cellKey);
       _cellAnimations[cellKey]?.dispose();
@@ -173,9 +178,11 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
     
     setState(() {
       // Place all cells of the shape
-      for (final pos in shape) {
-        final targetRow = row + pos[1];
-        final targetCol = col + pos[0];
+      for (int i = 0; i < coordinates.length; i += 2) {
+        final xOffset = coordinates[i];
+        final yOffset = coordinates[i + 1];
+        final targetRow = row + yOffset;
+        final targetCol = col + xOffset;
         gameGrid[targetRow][targetCol] = color;
       }
       checkAndClearLines();
@@ -685,10 +692,14 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
                       
                       Color? cellColor = gameGrid[row][col];
                       
+                      // Check if current piece occupies this position
+                      bool isOccupiedByCurrentPiece = currentPiece != null && currentPiece!.occupiesPosition(row, col);
+                      Color? currentPieceColor = isOccupiedByCurrentPiece ? currentPiece!.neonColor : null;
+                      
                       return DragTarget<Piece>(
                         builder: (context, candidateData, rejectedData) {
                           bool isHovering = candidateData.isNotEmpty;
-                          Color? ghostColor = isHovering ? candidateData.first.color : null;
+                          Color? ghostColor = isHovering ? candidateData.first.neonColor : null;
                           bool isClearing = clearingCells[row][col];
                           String cellKey = '${row}_$col';
                           bool isPlacing = _cellAnimations.containsKey(cellKey);
@@ -705,7 +716,14 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
                                 double opacity = 1.0 - _clearAnimation.value;
                                 displayColor = (cellColor ?? Colors.white).withOpacity(opacity);
                               } else {
-                                displayColor = cellColor ?? (ghostColor != null ? ghostColor.withOpacity(0.3) : Colors.transparent);
+                                // Prioritize current piece color, then ghost color, then grid color
+                                if (currentPieceColor != null) {
+                                  displayColor = currentPieceColor!;
+                                } else if (ghostColor != null) {
+                                  displayColor = ghostColor.withOpacity(0.3);
+                                } else {
+                                  displayColor = cellColor ?? Colors.transparent;
+                                }
                                 
                                 // Add placement animation
                                 if (isPlacing && _cellAnimations[cellKey] != null) {
@@ -722,22 +740,43 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
                                       color: isHovering ? Colors.cyanAccent : Colors.grey[800]!.withOpacity(0.3),
                                       width: isHovering ? 2.0 : 0.5,
                                     ),
-                                    boxShadow: cellColor != null && !isClearing ? [
-                                      BoxShadow(
-                                        color: cellColor.withOpacity(0.9),
-                                        blurRadius: 12.0,
-                                        spreadRadius: 2.0,
-                                      ),
-                                      BoxShadow(
-                                        color: cellColor.withOpacity(0.7),
-                                        blurRadius: 6.0,
-                                        spreadRadius: 1.0,
-                                      ),
-                                      BoxShadow(
-                                        color: cellColor.withOpacity(0.5),
-                                        blurRadius: 3.0,
-                                        spreadRadius: 0.5,
-                                      ),
+                                    boxShadow: (cellColor != null || currentPieceColor != null) && !isClearing ? [
+                                      // Enhanced neon glow for current piece
+                                      if (currentPieceColor != null) ...[
+                                        BoxShadow(
+                                          color: currentPieceColor!.withOpacity(1.0),
+                                          blurRadius: 20.0,
+                                          spreadRadius: 3.0,
+                                        ),
+                                        BoxShadow(
+                                          color: currentPieceColor!.withOpacity(0.8),
+                                          blurRadius: 15.0,
+                                          spreadRadius: 2.0,
+                                        ),
+                                        BoxShadow(
+                                          color: currentPieceColor!.withOpacity(0.6),
+                                          blurRadius: 10.0,
+                                          spreadRadius: 1.0,
+                                        ),
+                                      ],
+                                      // Regular shadow for placed pieces
+                                      if (cellColor != null) ...[
+                                        BoxShadow(
+                                          color: cellColor.withOpacity(0.9),
+                                          blurRadius: 12.0,
+                                          spreadRadius: 2.0,
+                                        ),
+                                        BoxShadow(
+                                          color: cellColor.withOpacity(0.7),
+                                          blurRadius: 6.0,
+                                          spreadRadius: 1.0,
+                                        ),
+                                        BoxShadow(
+                                          color: cellColor.withOpacity(0.5),
+                                          blurRadius: 3.0,
+                                          spreadRadius: 0.5,
+                                        ),
+                                      ],
                                     ] : null,
                                   ),
                                 ),
@@ -892,13 +931,12 @@ class _BlockPoolState extends State<BlockPool> with TickerProviderStateMixin {
   }
 
   void generatePoolPieces() {
-    final tetrominoTypes = Tetromino.values;
-    final availableTypes = List<Tetromino>.from(tetrominoTypes);
+    final blockShapeTypes = BlockShape.values;
+    final availableTypes = List<BlockShape>.from(blockShapeTypes);
     availableTypes.shuffle(random);
     
     poolPieces = availableTypes.take(3).map((type) {
-      final piece = Piece(type: type);
-      piece.initializePiece();
+      final piece = Piece(type: type, position: [0, 0]);
       return piece;
     }).toList();
   }
@@ -935,12 +973,15 @@ class _BlockPoolState extends State<BlockPool> with TickerProviderStateMixin {
   }
 
   Widget _buildBlockPreview(Piece piece) {
-    final shape = piece.getShape();
+    final coordinates = piece.getShapeCoordinates();
     final cellSize = 12.0; // Smaller cell size to fit larger shapes
     
-    // Calculate the required container size based on shape dimensions
-    final maxX = shape.map((pos) => pos[0]).reduce((a, b) => a > b ? a : b);
-    final maxY = shape.map((pos) => pos[1]).reduce((a, b) => a > b ? a : b);
+    // Calculate required container size based on shape dimensions
+    int maxX = 0, maxY = 0;
+    for (int i = 0; i < coordinates.length; i += 2) {
+      maxX = coordinates[i] > maxX ? coordinates[i] : maxX;
+      maxY = coordinates[i + 1] > maxY ? coordinates[i + 1] : maxY;
+    }
     final containerWidth = (maxX + 1) * cellSize + 16; // Add padding
     final containerHeight = (maxY + 1) * cellSize + 16; // Add padding
     
@@ -959,7 +1000,7 @@ class _BlockPoolState extends State<BlockPool> with TickerProviderStateMixin {
           borderRadius: BorderRadius.circular(4),
           boxShadow: [
             BoxShadow(
-              color: piece.color.withOpacity(0.8),
+              color: piece.neonColor.withOpacity(0.8),
               blurRadius: 12.0,
               spreadRadius: 2.0,
             ),
@@ -997,7 +1038,7 @@ class _BlockPoolState extends State<BlockPool> with TickerProviderStateMixin {
           borderRadius: BorderRadius.circular(4),
           boxShadow: [
             BoxShadow(
-              color: piece.color.withOpacity(0.6),
+              color: piece.neonColor.withOpacity(0.6),
               blurRadius: 8.0,
               spreadRadius: 1.0,
             ),
@@ -1009,31 +1050,32 @@ class _BlockPoolState extends State<BlockPool> with TickerProviderStateMixin {
   }
 
   Widget _buildShapeWidget(Piece piece, double cellSize) {
-    final shape = piece.getShape();
+    final coordinates = piece.getShapeCoordinates();
     
     return Center(
       child: SizedBox(
         width: 4 * cellSize, // Max width for any shape
         height: 2 * cellSize, // Max height for any shape
         child: Stack(
-          children: shape.map((pos) {
-            return Positioned(
-              left: pos[0] * cellSize,
-              top: pos[1] * cellSize,
-              child: Container(
-                width: cellSize,
-                height: cellSize,
-                decoration: BoxDecoration(
-                  color: piece.color,
-                  border: Border.all(
-                    color: Colors.white.withOpacity(0.3),
-                    width: 0.5,
+          children: [
+            for (int i = 0; i < coordinates.length; i += 2)
+              Positioned(
+                left: coordinates[i] * cellSize,
+                top: coordinates[i + 1] * cellSize,
+                child: Container(
+                  width: cellSize,
+                  height: cellSize,
+                  decoration: BoxDecoration(
+                    color: piece.neonColor,
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.3),
+                      width: 0.5,
+                    ),
+                    borderRadius: BorderRadius.circular(1),
                   ),
-                  borderRadius: BorderRadius.circular(1),
                 ),
               ),
-            );
-          }).toList(),
+          ],
         ),
       ),
     );
