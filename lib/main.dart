@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'dart:math';
 import 'constants.dart';
 import 'piece.dart';
@@ -42,11 +43,14 @@ class GameBoard extends StatefulWidget {
   State<GameBoard> createState() => _GameBoardState();
 }
 
-class _GameBoardState extends State<GameBoard> {
+class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
   late List<List<Color?>> gameGrid;
+  late List<List<bool>> clearingCells;
   final Random random = Random();
   int score = 0;
   bool isGameOver = false;
+  late AnimationController _clearAnimationController;
+  late Animation<double> _clearAnimation;
 
   @override
   void initState() {
@@ -55,8 +59,30 @@ class _GameBoardState extends State<GameBoard> {
       GameConstants.rowLength,
       (_) => List.generate(GameConstants.colLength, (_) => null),
     );
+    clearingCells = List.generate(
+      GameConstants.rowLength,
+      (_) => List.generate(GameConstants.colLength, (_) => false),
+    );
+    
+    _clearAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 500),
+      vsync: this,
+    );
+    _clearAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _clearAnimationController,
+        curve: Curves.easeInOut,
+      ),
+    );
+    
     print('Game initialized with grid: ${GameConstants.rowLength}x${GameConstants.colLength}');
     print('Initial empty cells: ${GameConstants.rowLength * GameConstants.colLength}');
+  }
+
+  @override
+  void dispose() {
+    _clearAnimationController.dispose();
+    super.dispose();
   }
 
   bool isValidDrop(int row, int col) {
@@ -123,22 +149,43 @@ class _GameBoardState extends State<GameBoard> {
         points += (totalLines - 1) * 50;
       }
       
+      // Mark cells for clearing animation
       setState(() {
-        // Clear rows
         for (int row in rowsToClear) {
           for (int col = 0; col < GameConstants.colLength; col++) {
-            gameGrid[row][col] = null;
+            clearingCells[row][col] = true;
           }
         }
         
-        // Clear columns
         for (int col in colsToClear) {
           for (int row = 0; row < GameConstants.rowLength; row++) {
-            gameGrid[row][col] = null;
+            clearingCells[row][col] = true;
           }
         }
-        
-        score += points;
+      });
+      
+      // Play clear animation
+      _clearAnimationController.forward().then((_) {
+        setState(() {
+          // Clear rows
+          for (int row in rowsToClear) {
+            for (int col = 0; col < GameConstants.colLength; col++) {
+              gameGrid[row][col] = null;
+              clearingCells[row][col] = false;
+            }
+          }
+          
+          // Clear columns
+          for (int col in colsToClear) {
+            for (int row = 0; row < GameConstants.rowLength; row++) {
+              gameGrid[row][col] = null;
+              clearingCells[row][col] = false;
+            }
+          }
+          
+          score += points;
+        });
+        _clearAnimationController.reset();
       });
     }
   }
@@ -256,15 +303,44 @@ class _GameBoardState extends State<GameBoard> {
             builder: (context, candidateData, rejectedData) {
               bool isHovering = candidateData.isNotEmpty;
               Color? ghostColor = isHovering ? candidateData.first : null;
+              bool isClearing = clearingCells[row][col];
               
-              return Container(
-                decoration: BoxDecoration(
-                  color: cellColor ?? (ghostColor != null ? ghostColor.withOpacity(0.3) : Colors.transparent),
-                  border: Border.all(
-                    color: isHovering ? Colors.white : Colors.grey[700]!,
-                    width: isHovering ? 2.0 : 0.5,
-                  ),
-                ),
+              return AnimatedBuilder(
+                animation: _clearAnimation,
+                builder: (context, child) {
+                  Color cellColor = gameGrid[row][col];
+                  Color displayColor;
+                  
+                  if (isClearing) {
+                    // Flash animation for clearing cells
+                    double opacity = 1.0 - _clearAnimation.value;
+                    displayColor = (cellColor ?? Colors.white).withOpacity(opacity);
+                  } else {
+                    displayColor = cellColor ?? (ghostColor != null ? ghostColor.withOpacity(0.3) : Colors.transparent);
+                  }
+                  
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: displayColor,
+                      border: Border.all(
+                        color: isHovering ? Colors.cyanAccent : Colors.grey[800]!.withOpacity(0.3),
+                        width: isHovering ? 2.0 : 0.5,
+                      ),
+                      boxShadow: cellColor != null && !isClearing ? [
+                        BoxShadow(
+                          color: cellColor.withOpacity(0.8),
+                          blurRadius: 8.0,
+                          spreadRadius: 1.0,
+                        ),
+                        BoxShadow(
+                          color: cellColor.withOpacity(0.6),
+                          blurRadius: 4.0,
+                          spreadRadius: 0.5,
+                        ),
+                      ] : null,
+                    ),
+                  );
+                },
               );
             },
             onWillAccept: (color) {
@@ -398,8 +474,20 @@ class _BlockPoolState extends State<BlockPool> {
         height: 60,
         decoration: BoxDecoration(
           color: piece.color,
-          border: Border.all(color: Colors.white, width: 2),
+          border: Border.all(color: Colors.cyanAccent, width: 2),
           borderRadius: BorderRadius.circular(4),
+          boxShadow: [
+            BoxShadow(
+              color: piece.color.withOpacity(0.8),
+              blurRadius: 12.0,
+              spreadRadius: 2.0,
+            ),
+            BoxShadow(
+              color: Colors.cyanAccent.withOpacity(0.6),
+              blurRadius: 8.0,
+              spreadRadius: 1.0,
+            ),
+          ],
         ),
         child: Center(
           child: Text(
@@ -408,6 +496,13 @@ class _BlockPoolState extends State<BlockPool> {
               color: Colors.white,
               fontWeight: FontWeight.bold,
               fontSize: 12,
+              shadows: [
+                Shadow(
+                  color: Colors.black,
+                  blurRadius: 2,
+                  offset: Offset(1, 1),
+                ),
+              ],
             ),
           ),
         ),
@@ -433,8 +528,20 @@ class _BlockPoolState extends State<BlockPool> {
         height: 60,
         decoration: BoxDecoration(
           color: piece.color,
-          border: Border.all(color: Colors.grey[600]!, width: 1),
+          border: Border.all(color: Colors.grey[700]!.withOpacity(0.5), width: 1),
           borderRadius: BorderRadius.circular(4),
+          boxShadow: [
+            BoxShadow(
+              color: piece.color.withOpacity(0.8),
+              blurRadius: 10.0,
+              spreadRadius: 1.5,
+            ),
+            BoxShadow(
+              color: piece.color.withOpacity(0.6),
+              blurRadius: 6.0,
+              spreadRadius: 0.8,
+            ),
+          ],
         ),
         child: Center(
           child: Text(
@@ -443,6 +550,13 @@ class _BlockPoolState extends State<BlockPool> {
               color: Colors.white,
               fontWeight: FontWeight.bold,
               fontSize: 12,
+              shadows: [
+                Shadow(
+                  color: Colors.black,
+                  blurRadius: 2,
+                  offset: Offset(1, 1),
+                ),
+              ],
             ),
           ),
         ),
