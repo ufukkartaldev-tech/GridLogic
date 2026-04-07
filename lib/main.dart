@@ -8,9 +8,10 @@ import 'sound_manager.dart';
 import 'high_score_manager.dart';
 import 'commentary_manager.dart';
 import 'particle_effect.dart';
+import 'main_menu.dart';
 
 void main() {
-  runApp(const MaterialApp(
+  runApp(MaterialApp(
     title: 'Grid Logic',
     theme: ThemeData(
       colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
@@ -52,7 +53,7 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
   String? _currentCommentary;
   Timer? _commentaryTimer;
   Map<String, AnimationController> _cellAnimations = {};
-  Map<String, List<ParticleEffect>> _particleEffects = {};
+  Map<String, ParticleEffect> _particleEffects = {};
 
   @override
   void initState() {
@@ -129,12 +130,8 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
     for (var controller in _cellAnimations.values) {
       controller.dispose();
     }
-    for (var effects in _particleEffects.values) {
-      // Remove particle effects after animation
-      Future.delayed(const Duration(milliseconds: 500), () {
-        effects.dispose?.call();
-      });
-    }
+    // Dispose particle effects
+    _particleEffects.clear();
     super.dispose();
   }
 
@@ -481,33 +478,120 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
 
   void _showParticleEffect(String key, List<Particle> particles) {
     // Remove existing effect if it exists
-    _particleEffects[key]?.dispose?.call();
+    _particleEffects.remove(key);
     
     // Create new particle effect
     setState(() {
-      _particleEffects[key] = (
+      _particleEffects[key] = ParticleEffect(
         particles: particles,
         duration: const Duration(milliseconds: 500),
       );
     });
-  }                          Icon(
-                              isPaused ? Icons.play_arrow : Icons.pause,
-                              color: Colors.white,
-                              size: 16,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              isPaused ? 'RESUME' : 'PAUSE',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            ),
-                          ],
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          Column(
+            children: [
+              // Score and Controls
+              Container(
+                padding: const EdgeInsets.all(20),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'SCORE: $score',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                      ),
+                        Text(
+                          'HIGH: $highScore',
+                          style: TextStyle(
+                            color: Colors.grey[400],
+                            fontSize: 16,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        GestureDetector(
+                          onTap: () => setState(() => isPaused = !isPaused),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.grey[800],
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  isPaused ? Icons.play_arrow : Icons.pause,
+                                  color: Colors.white,
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  isPaused ? 'RESUME' : 'PAUSE',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        if (comboCount > 1)
+                          AnimatedBuilder(
+                            animation: _comboAnimation,
+                            builder: (context, child) {
+                              return Transform.scale(
+                                scale: 1.0 + (_comboAnimation.value * 0.5),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: Colors.orange,
+                                    borderRadius: BorderRadius.circular(20),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.orange.withOpacity(0.8),
+                                        blurRadius: 8.0,
+                                        spreadRadius: 2.0,
+                                      ),
+                                    ],
+                                  ),
+                                  child: Text(
+                                    '${comboCount}x COMBO!',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      shadows: [
+                                        Shadow(
+                                          color: Colors.black,
+                                          blurRadius: 2,
+                                          offset: Offset(1, 1),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                      ],
                     ),
                     if (comboCount > 1)
                       AnimatedBuilder(
@@ -557,95 +641,95 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
                   decoration: BoxDecoration(
                     border: Border.all(color: Colors.grey[800]!, width: 2),
                   ),
-      child: GridView.builder(
-        physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: GameConstants.colLength,
-          childAspectRatio: 1.0,
-        ),
-        itemCount: GameConstants.rowLength * GameConstants.colLength,
-        itemBuilder: (context, index) {
-          int row = index ~/ GameConstants.colLength;
-          int col = index % GameConstants.colLength;
-          
-          Color? cellColor = gameGrid[row][col];
-          
-          return DragTarget<Color>(
-            builder: (context, candidateData, rejectedData) {
-              bool isHovering = candidateData.isNotEmpty;
-              Color? ghostColor = isHovering ? candidateData.first : null;
-              bool isClearing = clearingCells[row][col];
-              String cellKey = '${row}_$col';
-              bool isPlacing = _cellAnimations.containsKey(cellKey);
-              
-              return AnimatedBuilder(
-                animation: Listenable.merge([_clearAnimation, _cellAnimations[cellKey] ?? const AlwaysStoppedAnimation(0.0)]),
-                builder: (context, child) {
-                  Color cellColor = gameGrid[row][col];
-                  Color displayColor;
-                  double scale = 1.0;
-                  
-                  if (isClearing) {
-                    // Flash animation for clearing cells
-                    double opacity = 1.0 - _clearAnimation.value;
-                    displayColor = (cellColor ?? Colors.white).withOpacity(opacity);
-                  } else {
-                    displayColor = cellColor ?? (ghostColor != null ? ghostColor.withOpacity(0.3) : Colors.transparent);
-                    
-                    // Add placement animation
-                    if (isPlacing && _cellAnimations[cellKey] != null) {
-                      scale = 1.0 + (_placementAnimation.value * 0.3);
-                    }
-                  }
-                  
-                  return Transform.scale(
-                    scale: scale,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: displayColor,
-                        border: Border.all(
-                          color: isHovering ? Colors.cyanAccent : Colors.grey[800]!.withOpacity(0.3),
-                          width: isHovering ? 2.0 : 0.5,
-                        ),
-                        boxShadow: cellColor != null && !isClearing ? [
-                          BoxShadow(
-                            color: cellColor.withOpacity(0.9),
-                            blurRadius: 12.0,
-                            spreadRadius: 2.0,
-                          ),
-                          BoxShadow(
-                            color: cellColor.withOpacity(0.7),
-                            blurRadius: 6.0,
-                            spreadRadius: 1.0,
-                          ),
-                          BoxShadow(
-                            color: cellColor.withOpacity(0.5),
-                            blurRadius: 3.0,
-                            spreadRadius: 0.5,
-                          ),
-                        ] : null,
-                      ),
+                  child: GridView.builder(
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: GameConstants.colLength,
+                      childAspectRatio: 1.0,
                     ),
-                  );
-                },
-              );
-            },
-            onWillAccept: (color) {
-              return isValidDrop(row, col);
-            },
-            onAccept: (color) {
-              placePiece(row, col, color);
-            },
-          );
-        },
-      ),
+                    itemCount: GameConstants.rowLength * GameConstants.colLength,
+                    itemBuilder: (context, index) {
+                      int row = index ~/ GameConstants.colLength;
+                      int col = index % GameConstants.colLength;
+                      
+                      Color? cellColor = gameGrid[row][col];
+                      
+                      return DragTarget<Color>(
+                        builder: (context, candidateData, rejectedData) {
+                          bool isHovering = candidateData.isNotEmpty;
+                          Color? ghostColor = isHovering ? candidateData.first : null;
+                          bool isClearing = clearingCells[row][col];
+                          String cellKey = '${row}_$col';
+                          bool isPlacing = _cellAnimations.containsKey(cellKey);
+                          
+                          return AnimatedBuilder(
+                            animation: Listenable.merge([_clearAnimation, _cellAnimations[cellKey] ?? const AlwaysStoppedAnimation(0.0)]),
+                            builder: (context, child) {
+                              Color? cellColor = gameGrid[row][col];
+                              Color displayColor;
+                              double scale = 1.0;
+                              
+                              if (isClearing) {
+                                // Flash animation for clearing cells
+                                double opacity = 1.0 - _clearAnimation.value;
+                                displayColor = (cellColor ?? Colors.white).withOpacity(opacity);
+                              } else {
+                                displayColor = cellColor ?? (ghostColor != null ? ghostColor.withOpacity(0.3) : Colors.transparent);
+                                
+                                // Add placement animation
+                                if (isPlacing && _cellAnimations[cellKey] != null) {
+                                  scale = 1.0 + (_placementAnimation.value * 0.3);
+                                }
+                              }
+                              
+                              return Transform.scale(
+                                scale: scale,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: displayColor,
+                                    border: Border.all(
+                                      color: isHovering ? Colors.cyanAccent : Colors.grey[800]!.withOpacity(0.3),
+                                      width: isHovering ? 2.0 : 0.5,
+                                    ),
+                                    boxShadow: cellColor != null && !isClearing ? [
+                                      BoxShadow(
+                                        color: cellColor.withOpacity(0.9),
+                                        blurRadius: 12.0,
+                                        spreadRadius: 2.0,
+                                      ),
+                                      BoxShadow(
+                                        color: cellColor.withOpacity(0.7),
+                                        blurRadius: 6.0,
+                                        spreadRadius: 1.0,
+                                      ),
+                                      BoxShadow(
+                                        color: cellColor.withOpacity(0.5),
+                                        blurRadius: 3.0,
+                                        spreadRadius: 0.5,
+                                      ),
+                                    ] : null,
+                                  ),
+                                ),
+                              );
+                            },
+                          );
+                        },
+                        onWillAccept: (color) {
+                          return isValidDrop(row, col);
+                        },
+                        onAccept: (color) {
+                          placePiece(row, col, color);
+                        },
+                      );
+                    },
+                  ),
                 ),
               if (!isPaused)
                 const BlockPool(),
+              if (isPaused)
+                _buildPauseMenu(),
             ],
           ),
-          if (isPaused)
-            _buildPauseMenu(),
         ],
       ),
     );
@@ -667,14 +751,13 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
               BoxShadow(
                 color: Colors.cyanAccent.withOpacity(0.8),
                 blurRadius: 20,
-                spreadRadius: 5,
               ),
             ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
+              Text(
                 'PAUSED',
                 style: TextStyle(
                   color: Colors.cyanAccent,
@@ -684,7 +767,6 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
                     Shadow(
                       color: Colors.cyanAccent.withOpacity(0.8),
                       blurRadius: 10,
-                      spreadRadius: 3,
                     ),
                   ],
                 ),
@@ -714,13 +796,6 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
           ),
-          shadow: [
-            BoxShadow(
-              color: color.withOpacity(0.6),
-              blurRadius: 8,
-              spreadRadius: 2,
-            ),
-          ],
         ),
         child: Text(
           text,
@@ -749,15 +824,40 @@ class BlockPool extends StatefulWidget {
   State<BlockPool> createState() => _BlockPoolState();
 }
 
-class _BlockPoolState extends State<BlockPool> {
+class _BlockPoolState extends State<BlockPool> with TickerProviderStateMixin {
   List<Piece> poolPieces = [];
   final Random random = Random();
   final SoundManager _soundManager = SoundManager();
+  String? _currentCommentary;
+  late AnimationController _commentaryAnimationController;
+  late Animation<double> _commentaryAnimation;
+  Map<String, ParticleEffect> _particleEffects = {};
 
   @override
   void initState() {
     super.initState();
+    _soundManager.initialize();
+    
+    _commentaryAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 500),
+      vsync: this,
+    );
+    _commentaryAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _commentaryAnimationController,
+        curve: Curves.easeInOut,
+      ),
+    );
+    
     generatePoolPieces();
+  }
+
+  @override
+  void dispose() {
+    _commentaryAnimationController.dispose();
+    _soundManager.dispose();
+    _particleEffects.clear();
+    super.dispose();
   }
 
   void generatePoolPieces() {
@@ -775,90 +875,16 @@ class _BlockPoolState extends State<BlockPool> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(
-        children: [
-          // Commentary Bubble
-          if (_currentCommentary != null)
-            Positioned(
-              top: 20,
-              left: 20,
-              right: 20,
-              child: AnimatedBuilder(
-                animation: _commentaryAnimation,
-                builder: (context, child) {
-                  return Transform.translate(
-                    offset: Offset(0, -50 * (1.0 - _commentaryAnimation.value)),
-                    child: Opacity(
-                      opacity: _commentaryAnimation.value,
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              Colors.purple.withOpacity(0.9),
-                              Colors.blue.withOpacity(0.7),
-                            ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Colors.cyanAccent, width: 2),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.cyanAccent.withOpacity(0.8),
-                              blurRadius: 15,
-                              spreadRadius: 3,
-                            ),
-                            BoxShadow(
-                              color: Colors.purple.withOpacity(0.6),
-                              blurRadius: 8,
-                              spreadRadius: 2,
-                            ),
-                          ],
-                        ),
-                        child: Text(
-                          _currentCommentary!,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            shadows: [
-                              Shadow(
-                                color: Colors.black,
-                                blurRadius: 3,
-                                offset: Offset(1, 1),
-                              ),
-                            ],
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          // Particle Effects
-          ..._particleEffects.values.map((effect) => Positioned(
-            top: effect.particles.first.y,
-            left: effect.particles.first.x,
-            child: effect,
-          )),
-          Column(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              ...poolPieces.map((piece) => _buildBlockPreview(piece)),
-              IconButton(
-                onPressed: refreshPool,
-                icon: const Icon(Icons.refresh, color: Colors.white),
-                tooltip: 'Refresh Pool',
-              ),
-            ],
-          ),
-        ],
-      ),
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        ...poolPieces.map((piece) => _buildBlockPreview(piece)),
+        IconButton(
+          onPressed: refreshPool,
+          icon: const Icon(Icons.refresh, color: Colors.white),
+          tooltip: 'Refresh Pool',
+        ),
+      ],
     );
   }
 

@@ -27,12 +27,10 @@ class MainMenu extends StatelessWidget {
                         Shadow(
                           color: Colors.cyan.withOpacity(0.8),
                           blurRadius: 20,
-                          spreadRadius: 5,
                         ),
                         Shadow(
                           color: Colors.blue.withOpacity(0.6),
                           blurRadius: 10,
-                          spreadRadius: 2,
                         ),
                       ],
                     ),
@@ -48,12 +46,10 @@ class MainMenu extends StatelessWidget {
                         Shadow(
                           color: Colors.purple.withOpacity(0.8),
                           blurRadius: 20,
-                          spreadRadius: 5,
                         ),
                         Shadow(
                           color: Colors.pink.withOpacity(0.6),
                           blurRadius: 10,
-                          spreadRadius: 2,
                         ),
                       ],
                     ),
@@ -68,7 +64,7 @@ class MainMenu extends StatelessWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => const GameScreen(),
+                    builder: (context) => const GameBoard(),
                   ),
                 );
               },
@@ -88,12 +84,10 @@ class MainMenu extends StatelessWidget {
                     BoxShadow(
                       color: Colors.blue.withOpacity(0.8),
                       blurRadius: 15,
-                      spreadRadius: 3,
                     ),
                     BoxShadow(
                       color: Colors.purple.withOpacity(0.6),
                       blurRadius: 8,
-                      spreadRadius: 1.5,
                     ),
                   ],
                 ),
@@ -159,14 +153,13 @@ class _GameScreenState extends State<GameScreen> {
               BoxShadow(
                 color: Colors.cyanAccent.withOpacity(0.8),
                 blurRadius: 20,
-                spreadRadius: 5,
               ),
             ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
+              Text(
                 'PAUSED',
                 style: TextStyle(
                   color: Colors.cyanAccent,
@@ -176,7 +169,6 @@ class _GameScreenState extends State<GameScreen> {
                     Shadow(
                       color: Colors.cyanAccent.withOpacity(0.8),
                       blurRadius: 10,
-                      spreadRadius: 3,
                     ),
                   ],
                 ),
@@ -224,13 +216,6 @@ class _GameScreenState extends State<GameScreen> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
           ),
-          shadow: [
-            BoxShadow(
-              color: color.withOpacity(0.6),
-              blurRadius: 8,
-              spreadRadius: 2,
-            ),
-          ],
         ),
         child: Text(
           text,
