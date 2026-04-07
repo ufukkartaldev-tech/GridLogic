@@ -38,7 +38,7 @@ class GameBoard extends StatefulWidget {
 
 class _GameBoardState extends State<GameBoard> {
   late Piece currentPiece;
-  List<List<Color?>> gameGrid;
+  late List<List<Color?>> gameGrid;
   Timer? gameTimer;
   final Random random = Random();
 
