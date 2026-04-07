@@ -40,14 +40,17 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
   late AnimationController _clearAnimationController;
   late AnimationController _comboAnimationController;
   late AnimationController _commentaryAnimationController;
+  late AnimationController _placementAnimationController;
   late Animation<double> _clearAnimation;
   late Animation<double> _comboAnimation;
   late Animation<double> _commentaryAnimation;
+  late Animation<double> _placementAnimation;
   final SoundManager _soundManager = SoundManager();
   final HighScoreManager _highScoreManager = HighScoreManager();
   final CommentaryManager _commentaryManager = CommentaryManager();
   String? _currentCommentary;
   Timer? _commentaryTimer;
+  Map<String, AnimationController> _cellAnimations = {};
 
   @override
   void initState() {
@@ -96,6 +99,17 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
       ),
     );
     
+    _placementAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _placementAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _placementAnimationController,
+        curve: Curves.elasticOut,
+      ),
+    );
+    
     print('Game initialized with grid: ${GameConstants.rowLength}x${GameConstants.colLength}');
     print('Initial empty cells: ${GameConstants.rowLength * GameConstants.colLength}');
   }
@@ -105,8 +119,14 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
     _clearAnimationController.dispose();
     _comboAnimationController.dispose();
     _commentaryAnimationController.dispose();
+    _placementAnimationController.dispose();
     _commentaryTimer?.cancel();
     _soundManager.dispose();
+    
+    // Dispose cell animations
+    for (var controller in _cellAnimations.values) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
@@ -120,9 +140,30 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
 
   void placePiece(int row, int col, Color color) {
     _soundManager.playDrop();
+    
+    // Create unique key for this cell
+    String cellKey = '${row}_$col';
+    
+    // Dispose existing animation for this cell
+    _cellAnimations[cellKey]?.dispose();
+    
+    // Create new animation controller for this cell
+    _cellAnimations[cellKey] = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+    
     setState(() {
       gameGrid[row][col] = color;
       checkAndClearLines();
+    });
+    
+    // Play placement animation
+    _cellAnimations[cellKey]!.forward().then((_) {
+      _cellAnimations[cellKey]!.reverse().then((_) {
+        _cellAnimations[cellKey]!.dispose();
+        _cellAnimations.remove(cellKey);
+      });
     });
     
     // Delay game over check to avoid immediate triggering
@@ -457,12 +498,15 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
               bool isHovering = candidateData.isNotEmpty;
               Color? ghostColor = isHovering ? candidateData.first : null;
               bool isClearing = clearingCells[row][col];
+              String cellKey = '${row}_$col';
+              bool isPlacing = _cellAnimations.containsKey(cellKey);
               
               return AnimatedBuilder(
-                animation: _clearAnimation,
+                animation: Listenable.merge([_clearAnimation, _cellAnimations[cellKey] ?? const AlwaysStoppedAnimation()]),
                 builder: (context, child) {
                   Color cellColor = gameGrid[row][col];
                   Color displayColor;
+                  double scale = 1.0;
                   
                   if (isClearing) {
                     // Flash animation for clearing cells
@@ -470,27 +514,40 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
                     displayColor = (cellColor ?? Colors.white).withOpacity(opacity);
                   } else {
                     displayColor = cellColor ?? (ghostColor != null ? ghostColor.withOpacity(0.3) : Colors.transparent);
+                    
+                    // Add placement animation
+                    if (isPlacing && _cellAnimations[cellKey] != null) {
+                      scale = 1.0 + (_placementAnimation.value * 0.3);
+                    }
                   }
                   
-                  return Container(
-                    decoration: BoxDecoration(
-                      color: displayColor,
-                      border: Border.all(
-                        color: isHovering ? Colors.cyanAccent : Colors.grey[800]!.withOpacity(0.3),
-                        width: isHovering ? 2.0 : 0.5,
+                  return Transform.scale(
+                    scale: scale,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: displayColor,
+                        border: Border.all(
+                          color: isHovering ? Colors.cyanAccent : Colors.grey[800]!.withOpacity(0.3),
+                          width: isHovering ? 2.0 : 0.5,
+                        ),
+                        boxShadow: cellColor != null && !isClearing ? [
+                          BoxShadow(
+                            color: cellColor.withOpacity(0.9),
+                            blurRadius: 12.0,
+                            spreadRadius: 2.0,
+                          ),
+                          BoxShadow(
+                            color: cellColor.withOpacity(0.7),
+                            blurRadius: 6.0,
+                            spreadRadius: 1.0,
+                          ),
+                          BoxShadow(
+                            color: cellColor.withOpacity(0.5),
+                            blurRadius: 3.0,
+                            spreadRadius: 0.5,
+                          ),
+                        ] : null,
                       ),
-                      boxShadow: cellColor != null && !isClearing ? [
-                        BoxShadow(
-                          color: cellColor.withOpacity(0.8),
-                          blurRadius: 8.0,
-                          spreadRadius: 1.0,
-                        ),
-                        BoxShadow(
-                          color: cellColor.withOpacity(0.6),
-                          blurRadius: 4.0,
-                          spreadRadius: 0.5,
-                        ),
-                      ] : null,
                     ),
                   );
                 },
