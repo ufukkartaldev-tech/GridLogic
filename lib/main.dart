@@ -135,42 +135,73 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
     super.dispose();
   }
 
-  bool isValidDrop(int row, int col) {
-    return row >= 0 && 
-           row < GameConstants.rowLength && 
-           col >= 0 && 
-           col < GameConstants.colLength && 
-           gameGrid[row][col] == null;
+  bool isValidDrop(int row, int col, Piece piece) {
+    final shape = piece.getShape();
+    
+    // Check if all cells of the shape are within bounds and empty
+    for (final pos in shape) {
+      final targetRow = row + pos[1];
+      final targetCol = col + pos[0];
+      
+      if (targetRow < 0 || 
+          targetRow >= GameConstants.rowLength || 
+          targetCol < 0 || 
+          targetCol >= GameConstants.colLength || 
+          gameGrid[targetRow][targetCol] != null) {
+        return false;
+      }
+    }
+    return true;
   }
 
-  void placePiece(int row, int col, Color color) {
+  void placePiece(int row, int col, Piece piece) {
     _soundManager.playDrop();
     HapticFeedback.lightImpact(); // Light impact for block placement
     
-    // Create unique key for this cell
-    String cellKey = '${row}_$col';
+    final shape = piece.getShape();
+    final color = piece.color;
+    List<String> cellKeys = [];
     
-    // Dispose existing animation for this cell
-    _cellAnimations[cellKey]?.dispose();
-    
-    // Create new animation controller for this cell
-    _cellAnimations[cellKey] = AnimationController(
-      duration: const Duration(milliseconds: 600),
-      vsync: this,
-    );
+    // Dispose existing animations for all cells in this shape
+    for (final pos in shape) {
+      final targetRow = row + pos[1];
+      final targetCol = col + pos[0];
+      String cellKey = '${targetRow}_$targetCol';
+      cellKeys.add(cellKey);
+      _cellAnimations[cellKey]?.dispose();
+    }
     
     setState(() {
-      gameGrid[row][col] = color;
+      // Place all cells of the shape
+      for (final pos in shape) {
+        final targetRow = row + pos[1];
+        final targetCol = col + pos[0];
+        gameGrid[targetRow][targetCol] = color;
+      }
       checkAndClearLines();
     });
     
-    // Play placement animation
-    _cellAnimations[cellKey]!.forward().then((_) {
-      _cellAnimations[cellKey]!.reverse().then((_) {
-        _cellAnimations[cellKey]!.dispose();
-        _cellAnimations.remove(cellKey);
+    // Create animations for all cells
+    for (String cellKey in cellKeys) {
+      _cellAnimations[cellKey] = AnimationController(
+        duration: const Duration(milliseconds: 600),
+        vsync: this,
+      );
+      
+      // Play placement animation
+      _cellAnimations[cellKey]!.forward().then((_) {
+        _cellAnimations[cellKey]!.reverse().then((_) {
+          _cellAnimations[cellKey]!.dispose();
+          _cellAnimations.remove(cellKey);
+        });
       });
-    });
+    }
+    
+    // Remove the placed piece from the pool
+    final blockPoolState = context.findAncestorStateOfType<_BlockPoolState>();
+    if (blockPoolState != null) {
+      blockPoolState.removePiece(piece);
+    }
     
     // Delay game over check to avoid immediate triggering
     Future.delayed(const Duration(milliseconds: 100), () {
@@ -351,10 +382,10 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
       // Check if this piece can be placed anywhere on the grid
       for (int row = 0; row < GameConstants.rowLength; row++) {
         for (int col = 0; col < GameConstants.colLength; col++) {
-          if (gameGrid[row][col] == null) {
-            // Found an empty spot for this piece
+          if (isValidDrop(row, col, piece)) {
+            // Found a valid spot for this piece
             canPlaceThisPiece = true;
-            print('Found empty spot at ($row, $col) for piece ${piece.type.name}');
+            print('Found valid spot at ($row, $col) for piece ${piece.type.name}');
             break;
           }
         }
@@ -654,10 +685,10 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
                       
                       Color? cellColor = gameGrid[row][col];
                       
-                      return DragTarget<Color>(
+                      return DragTarget<Piece>(
                         builder: (context, candidateData, rejectedData) {
                           bool isHovering = candidateData.isNotEmpty;
-                          Color? ghostColor = isHovering ? candidateData.first : null;
+                          Color? ghostColor = isHovering ? candidateData.first.color : null;
                           bool isClearing = clearingCells[row][col];
                           String cellKey = '${row}_$col';
                           bool isPlacing = _cellAnimations.containsKey(cellKey);
@@ -714,11 +745,11 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
                             },
                           );
                         },
-                        onWillAccept: (color) {
-                          return isValidDrop(row, col);
+                        onWillAccept: (piece) {
+                          return isValidDrop(row, col, piece);
                         },
-                        onAccept: (color) {
-                          placePiece(row, col, color);
+                        onAccept: (piece) {
+                          placePiece(row, col, piece);
                         },
                       );
                     },
@@ -861,15 +892,30 @@ class _BlockPoolState extends State<BlockPool> with TickerProviderStateMixin {
   }
 
   void generatePoolPieces() {
-    poolPieces = List.generate(3, (_) {
-      final tetrominoTypes = Tetromino.values;
-      return Piece(type: tetrominoTypes[random.nextInt(tetrominoTypes.length)]);
-    });
+    final tetrominoTypes = Tetromino.values;
+    final availableTypes = List<Tetromino>.from(tetrominoTypes);
+    availableTypes.shuffle(random);
+    
+    poolPieces = availableTypes.take(3).map((type) {
+      final piece = Piece(type: type);
+      piece.initializePiece();
+      return piece;
+    }).toList();
   }
 
   void refreshPool() {
     setState(() {
       generatePoolPieces();
+    });
+  }
+
+  void removePiece(Piece piece) {
+    setState(() {
+      poolPieces.remove(piece);
+      // If pool is empty, generate new pieces
+      if (poolPieces.isEmpty) {
+        generatePoolPieces();
+      }
     });
   }
 
@@ -889,17 +935,26 @@ class _BlockPoolState extends State<BlockPool> with TickerProviderStateMixin {
   }
 
   Widget _buildBlockPreview(Piece piece) {
-    return Draggable<Color>(
-      data: piece.color,
+    final shape = piece.getShape();
+    final cellSize = 12.0; // Smaller cell size to fit larger shapes
+    
+    // Calculate the required container size based on shape dimensions
+    final maxX = shape.map((pos) => pos[0]).reduce((a, b) => a > b ? a : b);
+    final maxY = shape.map((pos) => pos[1]).reduce((a, b) => a > b ? a : b);
+    final containerWidth = (maxX + 1) * cellSize + 16; // Add padding
+    final containerHeight = (maxY + 1) * cellSize + 16; // Add padding
+    
+    return Draggable<Piece>(
+      data: piece,
       onDragStarted: () {
         _soundManager.playClick();
-        HapticFeedback.selectionClick(); // Selection click for block pickup
+        HapticFeedback.selectionClick();
       },
       feedback: Container(
-        width: 60,
-        height: 60,
+        width: containerWidth,
+        height: containerHeight,
         decoration: BoxDecoration(
-          color: piece.color,
+          color: Colors.grey[900],
           border: Border.all(color: Colors.cyanAccent, width: 2),
           borderRadius: BorderRadius.circular(4),
           boxShadow: [
@@ -915,27 +970,11 @@ class _BlockPoolState extends State<BlockPool> with TickerProviderStateMixin {
             ),
           ],
         ),
-        child: Center(
-          child: Text(
-            piece.type.name,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 12,
-              shadows: [
-                Shadow(
-                  color: Colors.black,
-                  blurRadius: 2,
-                  offset: Offset(1, 1),
-                ),
-              ],
-            ),
-          ),
-        ),
+        child: _buildShapeWidget(piece, cellSize),
       ),
       childWhenDragging: Container(
-        width: 60,
-        height: 60,
+        width: containerWidth,
+        height: containerHeight,
         decoration: BoxDecoration(
           color: Colors.grey[800],
           border: Border.all(color: Colors.grey[600]!, width: 1),
@@ -950,41 +989,51 @@ class _BlockPoolState extends State<BlockPool> with TickerProviderStateMixin {
         ),
       ),
       child: Container(
-        width: 60,
-        height: 60,
+        width: containerWidth,
+        height: containerHeight,
         decoration: BoxDecoration(
-          color: piece.color,
+          color: Colors.grey[900],
           border: Border.all(color: Colors.grey[700]!.withOpacity(0.5), width: 1),
           borderRadius: BorderRadius.circular(4),
           boxShadow: [
             BoxShadow(
-              color: piece.color.withOpacity(0.8),
-              blurRadius: 10.0,
-              spreadRadius: 1.5,
-            ),
-            BoxShadow(
               color: piece.color.withOpacity(0.6),
-              blurRadius: 6.0,
-              spreadRadius: 0.8,
+              blurRadius: 8.0,
+              spreadRadius: 1.0,
             ),
           ],
         ),
-        child: Center(
-          child: Text(
-            piece.type.name,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 12,
-              shadows: [
-                Shadow(
-                  color: Colors.black,
-                  blurRadius: 2,
-                  offset: Offset(1, 1),
+        child: _buildShapeWidget(piece, cellSize),
+      ),
+    );
+  }
+
+  Widget _buildShapeWidget(Piece piece, double cellSize) {
+    final shape = piece.getShape();
+    
+    return Center(
+      child: SizedBox(
+        width: 4 * cellSize, // Max width for any shape
+        height: 2 * cellSize, // Max height for any shape
+        child: Stack(
+          children: shape.map((pos) {
+            return Positioned(
+              left: pos[0] * cellSize,
+              top: pos[1] * cellSize,
+              child: Container(
+                width: cellSize,
+                height: cellSize,
+                decoration: BoxDecoration(
+                  color: piece.color,
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.3),
+                    width: 0.5,
+                  ),
+                  borderRadius: BorderRadius.circular(1),
                 ),
-              ],
-            ),
-          ),
+              ),
+            );
+          }).toList(),
         ),
       ),
     );
