@@ -5,6 +5,7 @@ import 'dart:math';
 import 'constants.dart';
 import 'piece.dart';
 import 'sound_manager.dart';
+import 'high_score_manager.dart';
 
 void main() {
   runApp(const MyApp());
@@ -50,6 +51,7 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
   late List<List<bool>> clearingCells;
   final Random random = Random();
   int score = 0;
+  int highScore = 0;
   bool isGameOver = false;
   int comboCount = 0;
   int comboMultiplier = 1;
@@ -58,11 +60,13 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
   late Animation<double> _clearAnimation;
   late Animation<double> _comboAnimation;
   final SoundManager _soundManager = SoundManager();
+  final HighScoreManager _highScoreManager = HighScoreManager();
 
   @override
   void initState() {
     super.initState();
     _soundManager.initialize();
+    _loadHighScore();
     gameGrid = List.generate(
       GameConstants.rowLength,
       (_) => List.generate(GameConstants.colLength, (_) => null),
@@ -223,6 +227,12 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
           }
           
           score += points;
+          
+          // Update high score if current score exceeds it
+          if (score > highScore) {
+            highScore = score;
+            _highScoreManager.saveHighScore(score);
+          }
         });
         _clearAnimationController.reset();
       });
@@ -293,6 +303,23 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
     }
   }
 
+  Future<void> _loadHighScore() async {
+    highScore = await _highScoreManager.getHighScore();
+    setState(() {});
+  }
+
+  void _updateScore(int points) {
+    setState(() {
+      score += points;
+      
+      // Update high score if current score exceeds it
+      if (score > highScore) {
+        highScore = score;
+        _highScoreManager.saveHighScore(score);
+      }
+    });
+  }
+
   void restartGame() {
     setState(() {
       gameGrid = List.generate(
@@ -325,13 +352,34 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'Score: $score',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Score: $score',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'High Score: $highScore',
+                        style: TextStyle(
+                          color: Colors.yellow,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black,
+                              blurRadius: 2,
+                              offset: Offset(1, 1),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                   if (comboCount > 1)
                     AnimatedBuilder(
