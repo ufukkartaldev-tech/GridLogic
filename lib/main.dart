@@ -43,7 +43,6 @@ class GameBoard extends StatefulWidget {
 }
 
 class _GameBoardState extends State<GameBoard> {
-  late Piece currentPiece;
   late List<List<Color?>> gameGrid;
   final Random random = Random();
 
@@ -54,25 +53,20 @@ class _GameBoardState extends State<GameBoard> {
       GameConstants.rowLength,
       (_) => List.generate(GameConstants.colLength, (_) => null),
     );
-    createNewPiece();
   }
 
-  void createNewPiece() {
-    final tetrominoTypes = Tetromino.values;
-    currentPiece = Piece(type: tetrominoTypes[random.nextInt(tetrominoTypes.length)]);
-    currentPiece.initializePiece();
+  bool isValidDrop(int row, int col) {
+    return row >= 0 && 
+           row < GameConstants.rowLength && 
+           col >= 0 && 
+           col < GameConstants.colLength && 
+           gameGrid[row][col] == null;
   }
 
-  void placePiece() {
-    if (currentPiece.position.length == 2) {
-      int row = currentPiece.position[0];
-      int col = currentPiece.position[1];
-      if (row >= 0 && row < GameConstants.rowLength && col >= 0 && col < GameConstants.colLength) {
-        gameGrid[row][col] = currentPiece.color;
-        createNewPiece();
-        setState(() {});
-      }
-    }
+  void placePiece(int row, int col, Color color) {
+    setState(() {
+      gameGrid[row][col] = color;
+    });
   }
 
   @override
@@ -94,27 +88,28 @@ class _GameBoardState extends State<GameBoard> {
           int row = index ~/ GameConstants.colLength;
           int col = index % GameConstants.colLength;
           
-          bool isCurrentPiece = currentPiece.position.length == 2 &&
-              currentPiece.position[0] == row && 
-              currentPiece.position[1] == col;
-          
           Color? cellColor = gameGrid[row][col];
           
-          return GestureDetector(
-            onTap: () {
-              if (isCurrentPiece) {
-                placePiece();
-              }
-            },
-            child: Container(
-              decoration: BoxDecoration(
-                color: isCurrentPiece ? currentPiece.color : (cellColor ?? Colors.transparent),
-                border: Border.all(
-                  color: Colors.grey[700]!,
-                  width: 0.5,
+          return DragTarget<Color>(
+            builder: (context, candidateData, rejectedData) {
+              bool isHovering = candidateData.isNotEmpty;
+              
+              return Container(
+                decoration: BoxDecoration(
+                  color: isHovering ? Colors.grey[600] : (cellColor ?? Colors.transparent),
+                  border: Border.all(
+                    color: isHovering ? Colors.white : Colors.grey[700]!,
+                    width: isHovering ? 2.0 : 0.5,
+                  ),
                 ),
-              ),
-            ),
+              );
+            },
+            onWillAccept: (color) {
+              return isValidDrop(row, col);
+            },
+            onAccept: (color) {
+              placePiece(row, col, color);
+            },
           );
         },
       ),
@@ -172,21 +167,59 @@ class _BlockPoolState extends State<BlockPool> {
   }
 
   Widget _buildBlockPreview(Piece piece) {
-    return Container(
-      width: 60,
-      height: 60,
-      decoration: BoxDecoration(
-        color: piece.color,
-        border: Border.all(color: Colors.grey[600]!, width: 1),
-        borderRadius: BorderRadius.circular(4),
+    return Draggable<Color>(
+      data: piece.color,
+      feedback: Container(
+        width: 60,
+        height: 60,
+        decoration: BoxDecoration(
+          color: piece.color,
+          border: Border.all(color: Colors.white, width: 2),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Center(
+          child: Text(
+            piece.type.name,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
+          ),
+        ),
       ),
-      child: Center(
-        child: Text(
-          piece.type.name,
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 12,
+      childWhenDragging: Container(
+        width: 60,
+        height: 60,
+        decoration: BoxDecoration(
+          color: Colors.grey[800],
+          border: Border.all(color: Colors.grey[600]!, width: 1),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: const Center(
+          child: Icon(
+            Icons.arrow_upward,
+            color: Colors.grey,
+            size: 20,
+          ),
+        ),
+      ),
+      child: Container(
+        width: 60,
+        height: 60,
+        decoration: BoxDecoration(
+          color: piece.color,
+          border: Border.all(color: Colors.grey[600]!, width: 1),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Center(
+          child: Text(
+            piece.type.name,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
           ),
         ),
       ),
