@@ -46,6 +46,7 @@ class _GameBoardState extends State<GameBoard> {
   late List<List<Color?>> gameGrid;
   final Random random = Random();
   int score = 0;
+  bool isGameOver = false;
 
   @override
   void initState() {
@@ -68,6 +69,7 @@ class _GameBoardState extends State<GameBoard> {
     setState(() {
       gameGrid[row][col] = color;
       checkAndClearLines();
+      checkGameOver();
     });
   }
 
@@ -133,27 +135,74 @@ class _GameBoardState extends State<GameBoard> {
     }
   }
 
+  bool canPlaceAnyBlock() {
+    // Get the BlockPool state to access pool pieces
+    final blockPoolState = context.findAncestorStateOfType<_BlockPoolState>();
+    if (blockPoolState == null) return false;
+
+    // Check each block in the pool
+    for (Piece piece in blockPoolState.poolPieces) {
+      // Check if this piece can be placed anywhere on the grid
+      for (int row = 0; row < GameConstants.rowLength; row++) {
+        for (int col = 0; col < GameConstants.colLength; col++) {
+          if (gameGrid[row][col] == null) {
+            // Found an empty spot, so this piece can be placed
+            return true;
+          }
+        }
+      }
+    }
+    
+    // No valid placement found for any piece
+    return false;
+  }
+
+  void checkGameOver() {
+    if (!canPlaceAnyBlock()) {
+      setState(() {
+        isGameOver = true;
+      });
+    }
+  }
+
+  void restartGame() {
+    setState(() {
+      gameGrid = List.generate(
+        GameConstants.rowLength,
+        (_) => List.generate(GameConstants.colLength, (_) => null),
+      );
+      score = 0;
+      isGameOver = false;
+    });
+    
+    // Refresh the block pool
+    final blockPoolState = context.findAncestorStateOfType<_BlockPoolState>();
+    blockPoolState?.refreshPool();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return Stack(
       children: [
-        Container(
-          padding: const EdgeInsets.all(16),
-          child: Text(
-            'Score: $score',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
+        Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'Score: $score',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
-          ),
-        ),
-        Container(
-          width: GameConstants.colLength * GameConstants.pixelSize,
-          height: GameConstants.rowLength * GameConstants.pixelSize,
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey[800]!, width: 2),
-          ),
+            Container(
+              width: GameConstants.colLength * GameConstants.pixelSize,
+              height: GameConstants.rowLength * GameConstants.pixelSize,
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey[800]!, width: 2),
+              ),
       child: GridView.builder(
         physics: const NeverScrollableScrollPhysics(),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -191,6 +240,65 @@ class _GameBoardState extends State<GameBoard> {
         },
       ),
         ),
+          ],
+        ),
+        if (isGameOver)
+          Container(
+            width: double.infinity,
+            height: double.infinity,
+            color: Colors.black.withOpacity(0.8),
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.all(32),
+                decoration: BoxDecoration(
+                  color: Colors.grey[900],
+                  border: Border.all(color: Colors.white, width: 2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Game Over!',
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Final Score: $score',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton(
+                      onPressed: restartGame,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 32,
+                          vertical: 16,
+                        ),
+                      ),
+                      child: const Text(
+                        'Restart',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }
