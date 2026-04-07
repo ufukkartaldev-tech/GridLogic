@@ -8,40 +8,20 @@ import 'sound_manager.dart';
 import 'high_score_manager.dart';
 
 void main() {
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Grid Logic',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
-      ),
-      home: const Scaffold(
-        backgroundColor: Colors.black,
-        body: Column(
-          children: [
-            Expanded(
-              child: Center(
-                child: GameBoard(),
-              ),
-            ),
-            BlockPool(),
-          ],
-        ),
-      ),
-    );
-  }
+  runApp(const MaterialApp(
+    title: 'Grid Logic',
+    theme: ThemeData(
+      colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+      useMaterial3: true,
+    ),
+    home: const MainMenu(),
+    debugShowCheckedModeBanner: false,
+  ));
 }
 
 class GameBoard extends StatefulWidget {
   const GameBoard({super.key});
-
+  
   @override
   State<GameBoard> createState() => _GameBoardState();
 }
@@ -53,6 +33,7 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
   int score = 0;
   int highScore = 0;
   bool isGameOver = false;
+  bool isPaused = false;
   int comboCount = 0;
   int comboMultiplier = 1;
   late AnimationController _clearAnimationController;
@@ -339,95 +320,84 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
     // Refresh the block pool
     final blockPoolState = context.findAncestorStateOfType<_BlockPoolState>();
     blockPoolState?.refreshPool();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Score: $score',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'High Score: $highScore',
-                        style: TextStyle(
-                          color: Colors.yellow,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          shadows: [
-                            Shadow(
-                              color: Colors.black,
-                              blurRadius: 2,
-                              offset: Offset(1, 1),
+                              spreadRadius: 1,
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              isPaused ? Icons.play_arrow : Icons.pause,
+                              color: Colors.white,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              isPaused ? 'RESUME' : 'PAUSE',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ],
                         ),
                       ),
-                    ],
-                  ),
-                  if (comboCount > 1)
-                    AnimatedBuilder(
-                      animation: _comboAnimation,
-                      builder: (context, child) {
-                        return Transform.scale(
-                          scale: 1.0 + (_comboAnimation.value * 0.5),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: Colors.orange,
-                              borderRadius: BorderRadius.circular(20),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.orange.withOpacity(0.8),
-                                  blurRadius: 8.0,
-                                  spreadRadius: 2.0,
-                                ),
-                              ],
-                            ),
-                            child: Text(
-                              '${comboCount}x COMBO!',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                shadows: [
-                                  Shadow(
-                                    color: Colors.black,
-                                    blurRadius: 2,
-                                    offset: Offset(1, 1),
+                    ),
+                    if (comboCount > 1)
+                      AnimatedBuilder(
+                        animation: _comboAnimation,
+                        builder: (context, child) {
+                          return Transform.scale(
+                            scale: 1.0 + (_comboAnimation.value * 0.5),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.orange,
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.orange.withOpacity(0.8),
+                                    blurRadius: 8.0,
+                                    spreadRadius: 2.0,
                                   ),
                                 ],
                               ),
+                              child: Text(
+                                '${comboCount}x COMBO!',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  shadows: [
+                                    Shadow(
+                                      color: Colors.black,
+                                      blurRadius: 2,
+                                      offset: Offset(1, 1),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
-                          ),
-                        );
-                      },
-                    ),
-                ],
+                          );
+                        },
+                      ),
+                  ],
+                ),
               ),
-            ),
-            Container(
-              width: GameConstants.colLength * GameConstants.pixelSize,
-              height: GameConstants.rowLength * GameConstants.pixelSize,
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey[800]!, width: 2),
-              ),
+              if (!isPaused)
+                Container(
+                  width: GameConstants.colLength * GameConstants.pixelSize,
+                  height: GameConstants.rowLength * GameConstants.pixelSize,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey[800]!, width: 2),
+                  ),
       child: GridView.builder(
         physics: const NeverScrollableScrollPhysics(),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -494,67 +464,105 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
           );
         },
       ),
-        ),
-          ],
-        ),
-        if (isGameOver)
-          Container(
-            width: double.infinity,
-            height: double.infinity,
-            color: Colors.black.withOpacity(0.8),
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.all(32),
-                decoration: BoxDecoration(
-                  color: Colors.grey[900],
-                  border: Border.all(color: Colors.white, width: 2),
-                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text(
-                      'Game Over!',
-                      style: TextStyle(
-                        color: Colors.red,
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Final Score: $score',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    ElevatedButton(
-                      onPressed: restartGame,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 32,
-                          vertical: 16,
-                        ),
-                      ),
-                      child: const Text(
-                        'Restart',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+              if (!isPaused)
+                const BlockPool(),
+            ],
+          ),
+          if (isPaused)
+            _buildPauseMenu(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPauseMenu() {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      color: Colors.black.withOpacity(0.9),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.all(40),
+          decoration: BoxDecoration(
+            color: Colors.grey[900],
+            border: Border.all(color: Colors.cyanAccent, width: 2),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.cyanAccent.withOpacity(0.8),
+                blurRadius: 20,
+                spreadRadius: 5,
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'PAUSED',
+                style: TextStyle(
+                  color: Colors.cyanAccent,
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  shadows: [
+                    Shadow(
+                      color: Colors.cyanAccent.withOpacity(0.8),
+                      blurRadius: 10,
+                      spreadRadius: 3,
                     ),
                   ],
                 ),
               ),
-            ),
+              const SizedBox(height: 40),
+              _buildMenuButton('RESUME', Colors.green, () => setState(() => isPaused = false)),
+              const SizedBox(height: 20),
+              _buildMenuButton('RESTART', Colors.orange, _restartGame),
+              const SizedBox(height: 20),
+              _buildMenuButton('QUIT', Colors.red, () => Navigator.popUntil(context, (route) => route.isFirst)),
+            ],
           ),
-      ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMenuButton(String text, Color color, VoidCallback onPressed) {
+    return SizedBox(
+      width: 200,
+      height: 50,
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: color,
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          shadow: [
+            BoxShadow(
+              color: color.withOpacity(0.6),
+              blurRadius: 8,
+              spreadRadius: 2,
+            ),
+          ],
+        ),
+        child: Text(
+          text,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            shadows: [
+              Shadow(
+                color: Colors.black,
+                blurRadius: 2,
+                offset: Offset(1, 1),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
