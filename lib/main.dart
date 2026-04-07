@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'dart:async';
 import 'dart:math';
 import 'constants.dart';
 import 'piece.dart';
+import 'sound_manager.dart';
 
 void main() {
   runApp(const MyApp());
@@ -55,10 +57,12 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
   late AnimationController _comboAnimationController;
   late Animation<double> _clearAnimation;
   late Animation<double> _comboAnimation;
+  final SoundManager _soundManager = SoundManager();
 
   @override
   void initState() {
     super.initState();
+    _soundManager.initialize();
     gameGrid = List.generate(
       GameConstants.rowLength,
       (_) => List.generate(GameConstants.colLength, (_) => null),
@@ -98,6 +102,7 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
   void dispose() {
     _clearAnimationController.dispose();
     _comboAnimationController.dispose();
+    _soundManager.dispose();
     super.dispose();
   }
 
@@ -110,6 +115,7 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
   }
 
   void placePiece(int row, int col, Color color) {
+    _soundManager.playDrop();
     setState(() {
       gameGrid[row][col] = color;
       checkAndClearLines();
@@ -157,6 +163,7 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
 
     // Clear lines and calculate score
     if (rowsToClear.isNotEmpty || colsToClear.isNotEmpty) {
+      _soundManager.playExplosion();
       int totalLines = rowsToClear.length + colsToClear.length;
       int basePoints = totalLines * 100;
       
@@ -514,6 +521,7 @@ class BlockPool extends StatefulWidget {
 class _BlockPoolState extends State<BlockPool> {
   List<Piece> poolPieces = [];
   final Random random = Random();
+  final SoundManager _soundManager = SoundManager();
 
   @override
   void initState() {
@@ -556,6 +564,7 @@ class _BlockPoolState extends State<BlockPool> {
   Widget _buildBlockPreview(Piece piece) {
     return Draggable<Color>(
       data: piece.color,
+      onDragStarted: () => _soundManager.playClick(),
       feedback: Container(
         width: 60,
         height: 60,
