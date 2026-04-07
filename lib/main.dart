@@ -255,10 +255,11 @@ class _GameBoardState extends State<GameBoard> {
           return DragTarget<Color>(
             builder: (context, candidateData, rejectedData) {
               bool isHovering = candidateData.isNotEmpty;
+              Color? ghostColor = isHovering ? candidateData.first : null;
               
               return Container(
                 decoration: BoxDecoration(
-                  color: isHovering ? Colors.grey[600] : (cellColor ?? Colors.transparent),
+                  color: cellColor ?? (ghostColor != null ? ghostColor.withOpacity(0.3) : Colors.transparent),
                   border: Border.all(
                     color: isHovering ? Colors.white : Colors.grey[700]!,
                     width: isHovering ? 2.0 : 0.5,
