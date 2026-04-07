@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'constants.dart';
+import 'piece.dart';
 
 void main() {
   runApp(const MyApp());
@@ -26,8 +27,22 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class GameBoard extends StatelessWidget {
+class GameBoard extends StatefulWidget {
   const GameBoard({super.key});
+
+  @override
+  State<GameBoard> createState() => _GameBoardState();
+}
+
+class _GameBoardState extends State<GameBoard> {
+  late Piece currentPiece;
+
+  @override
+  void initState() {
+    super.initState();
+    currentPiece = Piece(type: Tetromino.T);
+    currentPiece.initializePiece();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -45,8 +60,16 @@ class GameBoard extends StatelessWidget {
         ),
         itemCount: GameConstants.rowLength * GameConstants.colLength,
         itemBuilder: (context, index) {
+          int row = index ~/ GameConstants.colLength;
+          int col = index % GameConstants.colLength;
+          
+          bool isCurrentPiece = currentPiece.position.length == 2 &&
+              currentPiece.position[0] == row && 
+              currentPiece.position[1] == col;
+          
           return Container(
             decoration: BoxDecoration(
+              color: isCurrentPiece ? currentPiece.color : Colors.transparent,
               border: Border.all(
                 color: Colors.grey[700]!,
                 width: 0.5,
