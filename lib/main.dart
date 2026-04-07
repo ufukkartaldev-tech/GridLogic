@@ -45,6 +45,7 @@ class GameBoard extends StatefulWidget {
 class _GameBoardState extends State<GameBoard> {
   late List<List<Color?>> gameGrid;
   final Random random = Random();
+  int score = 0;
 
   @override
   void initState() {
@@ -66,17 +67,93 @@ class _GameBoardState extends State<GameBoard> {
   void placePiece(int row, int col, Color color) {
     setState(() {
       gameGrid[row][col] = color;
+      checkAndClearLines();
     });
+  }
+
+  void checkAndClearLines() {
+    List<int> rowsToClear = [];
+    List<int> colsToClear = [];
+
+    // Check for complete rows
+    for (int row = 0; row < GameConstants.rowLength; row++) {
+      bool isRowComplete = true;
+      for (int col = 0; col < GameConstants.colLength; col++) {
+        if (gameGrid[row][col] == null) {
+          isRowComplete = false;
+          break;
+        }
+      }
+      if (isRowComplete) {
+        rowsToClear.add(row);
+      }
+    }
+
+    // Check for complete columns
+    for (int col = 0; col < GameConstants.colLength; col++) {
+      bool isColComplete = true;
+      for (int row = 0; row < GameConstants.rowLength; row++) {
+        if (gameGrid[row][col] == null) {
+          isColComplete = false;
+          break;
+        }
+      }
+      if (isColComplete) {
+        colsToClear.add(col);
+      }
+    }
+
+    // Clear lines and calculate score
+    if (rowsToClear.isNotEmpty || colsToClear.isNotEmpty) {
+      int totalLines = rowsToClear.length + colsToClear.length;
+      int points = totalLines * 100;
+      
+      // Bonus points for multiple simultaneous clears
+      if (totalLines > 1) {
+        points += (totalLines - 1) * 50;
+      }
+      
+      setState(() {
+        // Clear rows
+        for (int row in rowsToClear) {
+          for (int col = 0; col < GameConstants.colLength; col++) {
+            gameGrid[row][col] = null;
+          }
+        }
+        
+        // Clear columns
+        for (int col in colsToClear) {
+          for (int row = 0; row < GameConstants.rowLength; row++) {
+            gameGrid[row][col] = null;
+          }
+        }
+        
+        score += points;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: GameConstants.colLength * GameConstants.pixelSize,
-      height: GameConstants.rowLength * GameConstants.pixelSize,
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey[800]!, width: 2),
-      ),
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          child: Text(
+            'Score: $score',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        Container(
+          width: GameConstants.colLength * GameConstants.pixelSize,
+          height: GameConstants.rowLength * GameConstants.pixelSize,
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey[800]!, width: 2),
+          ),
       child: GridView.builder(
         physics: const NeverScrollableScrollPhysics(),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -113,6 +190,8 @@ class _GameBoardState extends State<GameBoard> {
           );
         },
       ),
+        ),
+      ],
     );
   }
 }
