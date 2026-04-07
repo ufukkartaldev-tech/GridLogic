@@ -148,6 +148,7 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
 
   void placePiece(int row, int col, Color color) {
     _soundManager.playDrop();
+    HapticFeedback.lightImpact(); // Light impact for block placement
     
     // Create unique key for this cell
     String cellKey = '${row}_$col';
@@ -216,7 +217,12 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
 
     // Clear lines and calculate score
     if (rowsToClear.isNotEmpty || colsToClear.isNotEmpty) {
-      _soundManager.playExplosion();
+      // Play explosion sound synced with animation
+      Future.delayed(const Duration(milliseconds: 200), () {
+        _soundManager.playExplosion();
+      });
+      HapticFeedback.heavyImpact(); // Heavy impact for line clear
+      
       int totalLines = rowsToClear.length + colsToClear.length;
       int basePoints = totalLines * 100;
       
@@ -279,14 +285,14 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
             }
           }
           
-          score += points;
-          
           // Update high score if current score exceeds it
           if (score > highScore) {
             highScore = score;
             _highScoreManager.saveHighScore(score);
             _showCommentary(_commentaryManager.getHighScoreCommentary());
           }
+          
+          score += points;
         });
         _clearAnimationController.reset();
       });
@@ -837,7 +843,10 @@ class _BlockPoolState extends State<BlockPool> {
   Widget _buildBlockPreview(Piece piece) {
     return Draggable<Color>(
       data: piece.color,
-      onDragStarted: () => _soundManager.playClick(),
+      onDragStarted: () {
+        _soundManager.playClick();
+        HapticFeedback.selectionClick(); // Selection click for block pickup
+      },
       feedback: Container(
         width: 60,
         height: 60,
